@@ -19,6 +19,10 @@ vim.api.nvim_create_user_command("DiffDrawerClose", function()
   drawer().close()
 end, { desc = "Close Diff Drawer" })
 
+vim.api.nvim_create_user_command("DiffDrawerFocus", function()
+  drawer().focus()
+end, { desc = "Focus Diff Drawer" })
+
 vim.api.nvim_create_user_command("DiffDrawerRefresh", function()
   drawer().refresh()
 end, { desc = "Refresh Diff Drawer" })

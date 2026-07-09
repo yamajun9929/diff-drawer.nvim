@@ -29,6 +29,7 @@ COMMANDS                                     *diff-drawer-commands*
 :DiffDrawer                 Toggle the sidebar.
 :DiffDrawerOpen             Open the sidebar.
 :DiffDrawerClose            Close the sidebar and plugin diff windows.
+:DiffDrawerFocus            Focus the sidebar if it is open.
 :DiffDrawerRefresh          Refresh Git status.
 :DiffDrawerStageAll         Stage all changes.
 :DiffDrawerUnstageAll       Unstage all changes.
@@ -49,6 +50,10 @@ U       Unstage all changes.
 x       Discard selected unstaged change.
 r       Refresh.
 h       Collapse directory.
+
+Default editable diff mappings:
+
+<BS>    Focus the Diff Drawer sidebar.
 
 ==============================================================================
 CONFIGURATION                                *diff-drawer-configuration*

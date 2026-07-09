@@ -55,6 +55,7 @@ nvim +'set runtimepath+=~/projects/diff-drawer.nvim' \
 - `:DiffDrawer` toggles the sidebar
 - `:DiffDrawerOpen` opens it
 - `:DiffDrawerClose` closes it and its diff windows
+- `:DiffDrawerFocus` focuses the sidebar if it is open
 - `:DiffDrawerRefresh` refreshes Git status
 - `:DiffDrawerStageAll` stages all changes
 - `:DiffDrawerUnstageAll` unstages all changes
@@ -77,6 +78,12 @@ Inside the sidebar:
 | `h` | Collapse directory |
 | `/` | Move focus to search, matching Snacks picker behavior |
 | `<Esc>` | Close/cancel, matching Snacks picker behavior |
+
+Inside an editable diff opened with `<CR>`/`l`:
+
+| Key | Action |
+| --- | --- |
+| `<BS>` | Focus the Diff Drawer sidebar |
 
 Discard uses `git restore --worktree` for tracked files and `git clean -fd` for
 untracked files, after confirmation. Unlike VS Code, this does not move files to

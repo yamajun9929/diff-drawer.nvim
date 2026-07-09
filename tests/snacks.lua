@@ -30,6 +30,15 @@ local function select_index(picker, index)
   picker.list.cursor = index
 end
 
+local function has_buffer_key(buf, lhs)
+  for _, keymap in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+    if keymap.lhs == lhs then
+      return true
+    end
+  end
+  return false
+end
+
 local function wipe_buffers_under(root)
   local roots = { root }
   local real = (vim.uv or vim.loop).fs_realpath(root)
@@ -104,6 +113,13 @@ local right = vim.api.nvim_win_get_buf(state.diff_wins[2])
 assert(vim.api.nvim_buf_get_lines(left, 0, -1, false)[1] == "old", "expected baseline content")
 assert(vim.api.nvim_buf_get_name(right):match("a/b/x%.txt$"), "expected right pane to be working-tree file")
 assert(vim.bo[right].modifiable == true, "expected right pane to be editable")
+assert(has_buffer_key(right, "<BS>"), "expected editable diff to map back to drawer")
+vim.api.nvim_set_current_win(state.diff_wins[2])
+assert(drawer.focus(), "expected focus call to succeed")
+assert(picker:current_win() == "list", "expected focus to return to drawer list")
+vim.api.nvim_set_current_win(state.diff_wins[2])
+vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<BS>", true, false, true), "x", false)
+assert(picker:current_win() == "list", "expected backspace to return to drawer list")
 
 select_index(picker, file_index)
 picker:action("scm_stage")
@@ -114,6 +130,7 @@ end)
 assert(git.status_combined(dir)[1].staged, "expected file to be staged")
 
 drawer.close()
+assert(not has_buffer_key(right, "<BS>"), "expected diff back mapping to be cleaned up")
 
 vim.fn.writefile({ "staged" }, dir .. "/added.txt")
 run(dir, { "git", "add", "added.txt" })

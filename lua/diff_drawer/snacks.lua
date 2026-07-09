@@ -193,9 +193,68 @@ local function state_for(picker)
       closed = {},
       diff_wins = {},
       diff_bufs = {},
+      diff_keymaps = {},
     }
   end
   return state.pickers[picker]
+end
+
+local function focus_list(picker)
+  if not picker or picker.closed then
+    return false
+  end
+
+  if picker.layout and picker.layout.show then
+    pcall(picker.layout.show, picker.layout)
+  end
+
+  if picker.focus then
+    picker:focus("list", { show = true })
+    if picker.current_win and picker:current_win() == "list" then
+      return true
+    end
+  end
+
+  if picker.list and picker.list.win and picker.list.win.focus then
+    picker.list.win:focus()
+    if not picker.current_win or picker:current_win() == "list" then
+      return true
+    end
+  end
+
+  return picker.current_win and picker:current_win() == "list" or false
+end
+
+local function has_keymap(maps, lhs)
+  for _, map in ipairs(maps) do
+    if map.lhs == lhs then
+      return true
+    end
+  end
+  return false
+end
+
+local function set_diff_back_key(picker, buf)
+  if not is_valid_buf(buf) then
+    return
+  end
+
+  local st = state_for(picker)
+  st.diff_keymaps = st.diff_keymaps or {}
+
+  if st.diff_keymaps[buf] or has_keymap(vim.api.nvim_get_keymap("n"), "<BS>") then
+    return
+  end
+
+  if has_keymap(vim.api.nvim_buf_get_keymap(buf, "n"), "<BS>") then
+    return
+  end
+
+  vim.keymap.set("n", "<BS>", function()
+    focus_list(picker)
+  end, { buffer = buf, silent = true, desc = "Focus Diff Drawer" })
+
+  st.diff_keymaps[buf] = true
 end
 
 local function clear_edit_diff(picker)
@@ -219,8 +278,15 @@ local function clear_edit_diff(picker)
     end
   end
 
+  for buf in pairs(st.diff_keymaps or {}) do
+    if is_valid_buf(buf) then
+      pcall(vim.keymap.del, "n", "<BS>", { buffer = buf })
+    end
+  end
+
   st.diff_wins = {}
   st.diff_bufs = {}
+  st.diff_keymaps = {}
 end
 
 local function split_path(path)
@@ -517,13 +583,49 @@ local function worktree_buffer(picker, item)
   return buf, true
 end
 
+local function picker_window_ids(picker)
+  local ids = {}
+
+  local function add(win)
+    if type(win) == "number" and is_valid_win(win) then
+      ids[win] = true
+    end
+  end
+
+  for _, name in ipairs({ "input", "list" }) do
+    local part = picker[name]
+    if part and part.win then
+      add(part.win.win)
+      if part.win.opts then
+        add(part.win.opts.win)
+      end
+    end
+  end
+
+  if picker.layout and picker.layout.wins then
+    for _, name in ipairs({ "input", "list" }) do
+      local win = picker.layout.wins[name]
+      if win then
+        add(win.win)
+        if win.opts then
+          add(win.opts.win)
+        end
+      end
+    end
+  end
+
+  return ids
+end
+
 local function main_window(picker)
-  if is_valid_win(picker.main) then
+  local skip = picker_window_ids(picker)
+
+  if is_valid_win(picker.main) and not skip[picker.main] then
     return picker.main
   end
 
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if is_valid_win(win) and vim.api.nvim_win_get_config(win).relative == "" then
+    if is_valid_win(win) and not skip[win] and vim.api.nvim_win_get_config(win).relative == "" then
       return win
     end
   end
@@ -560,6 +662,8 @@ local function open_diff(picker, item)
 
   st.diff_wins = { left_win, right_win }
   picker.main = right_win
+  set_diff_back_key(picker, left_buf)
+  set_diff_back_key(picker, right_buf)
 
   for _, win in ipairs(st.diff_wins) do
     vim.api.nvim_win_call(win, function()
@@ -713,6 +817,10 @@ function M.close()
     clear_edit_diff(picker)
     picker:close()
   end
+end
+
+function M.focus()
+  return focus_list(active_pickers()[1])
 end
 
 function M.refresh()

@@ -31,6 +31,10 @@ function M.close()
   return ui().close()
 end
 
+function M.focus()
+  return ui().focus()
+end
+
 function M.refresh()
   return ui().refresh()
 end
