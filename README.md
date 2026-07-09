@@ -83,7 +83,7 @@ Inside an editable diff opened with `<CR>`/`l`:
 
 | Key | Action |
 | --- | --- |
-| `<BS>` | Focus the Diff Drawer sidebar |
+| `<BS>` | Close the editable diff and focus the Diff Drawer sidebar |
 
 Discard uses `git restore --worktree` for tracked files and `git clean -fd` for
 untracked files, after confirmation. Unlike VS Code, this does not move files to

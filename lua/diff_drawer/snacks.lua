@@ -234,6 +234,8 @@ local function has_keymap(maps, lhs)
   return false
 end
 
+local clear_edit_diff
+
 local function set_diff_back_key(picker, buf)
   if not is_valid_buf(buf) then
     return
@@ -251,13 +253,14 @@ local function set_diff_back_key(picker, buf)
   end
 
   vim.keymap.set("n", "<BS>", function()
+    clear_edit_diff(picker)
     focus_list(picker)
-  end, { buffer = buf, silent = true, desc = "Focus Diff Drawer" })
+  end, { buffer = buf, silent = true, desc = "Close Diff Drawer diff" })
 
   st.diff_keymaps[buf] = true
 end
 
-local function clear_edit_diff(picker)
+clear_edit_diff = function(picker)
   local st = state_for(picker)
 
   for _, win in ipairs(st.diff_wins or {}) do

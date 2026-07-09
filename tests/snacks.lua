@@ -110,6 +110,7 @@ local state = require("diff_drawer.snacks")._state.pickers[picker]
 assert(state and #state.diff_wins == 2, "expected editable diff windows")
 local left = vim.api.nvim_win_get_buf(state.diff_wins[1])
 local right = vim.api.nvim_win_get_buf(state.diff_wins[2])
+local left_win = state.diff_wins[1]
 assert(vim.api.nvim_buf_get_lines(left, 0, -1, false)[1] == "old", "expected baseline content")
 assert(vim.api.nvim_buf_get_name(right):match("a/b/x%.txt$"), "expected right pane to be working-tree file")
 assert(vim.bo[right].modifiable == true, "expected right pane to be editable")
@@ -120,6 +121,9 @@ assert(picker:current_win() == "list", "expected focus to return to drawer list"
 vim.api.nvim_set_current_win(state.diff_wins[2])
 vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<BS>", true, false, true), "x", false)
 assert(picker:current_win() == "list", "expected backspace to return to drawer list")
+assert(#state.diff_wins == 0, "expected backspace to close editable diff windows")
+assert(not vim.api.nvim_win_is_valid(left_win), "expected baseline diff window to close")
+assert(not has_buffer_key(right, "<BS>"), "expected backspace mapping to be cleaned up")
 
 select_index(picker, file_index)
 picker:action("scm_stage")

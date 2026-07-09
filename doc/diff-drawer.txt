@@ -53,7 +53,7 @@ h       Collapse directory.
 
 Default editable diff mappings:
 
-<BS>    Focus the Diff Drawer sidebar.
+<BS>    Close the editable diff and focus the Diff Drawer sidebar.
 
 ==============================================================================
 CONFIGURATION                                *diff-drawer-configuration*
