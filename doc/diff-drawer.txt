@@ -1,0 +1,78 @@
+*diff-drawer.nvim*        Snacks explorer-style Git changes for Neovim
+
+==============================================================================
+CONTENTS                                      *diff-drawer-contents*
+
+1. Usage                                      |diff-drawer-usage|
+2. Commands                                   |diff-drawer-commands|
+3. Mappings                                   |diff-drawer-mappings|
+4. Configuration                              |diff-drawer-configuration|
+5. License                                    |diff-drawer-license|
+
+==============================================================================
+USAGE                                        *diff-drawer-usage*
+
+Open the sidebar with:
+>
+  :DiffDrawer
+<
+
+The sidebar uses the same Snacks picker/explorer UI as LazyVim's file explorer.
+It shows only Git changed files as a tree. Press <CR> or `l` on a file to open
+an editable vimdiff. The left pane is a read-only Git baseline and the right
+pane is the working-tree file. Press `o` to jump to the working-tree file
+without opening a diff.
+
+==============================================================================
+COMMANDS                                     *diff-drawer-commands*
+
+:DiffDrawer                 Toggle the sidebar.
+:DiffDrawerOpen             Open the sidebar.
+:DiffDrawerClose            Close the sidebar and plugin diff windows.
+:DiffDrawerRefresh          Refresh Git status.
+:DiffDrawerStageAll         Stage all changes.
+:DiffDrawerUnstageAll       Unstage all changes.
+:DiffDrawerToggleLayout     Toggle tree/list layout.
+
+==============================================================================
+MAPPINGS                                     *diff-drawer-mappings*
+
+Default sidebar mappings:
+
+<CR>    Toggle directory or open editable file diff.
+l       Toggle directory or open editable file diff.
+o       Open working-tree file.
+s       Stage selected file.
+u       Unstage selected file.
+S       Stage all changes.
+U       Unstage all changes.
+x       Discard selected unstaged change.
+r       Refresh.
+h       Collapse directory.
+
+==============================================================================
+CONFIGURATION                                *diff-drawer-configuration*
+>
+  require("diff_drawer").setup({
+    git_executable = "git",
+    snacks = {
+      layout = { preset = "sidebar" },
+      title = "Git Changes",
+    },
+  })
+<
+
+==============================================================================
+LICENSE                                      *diff-drawer-license*
+
+diff-drawer.nvim is licensed under the MIT License. See LICENSE in the
+repository root.
+
+This plugin depends on snacks.nvim, which is licensed under Apache-2.0. Snacks
+is not vendored in this repository.
+
+Git is a trademark of Software Freedom Conservancy. This project is not
+affiliated with the Git Project, Software Freedom Conservancy, Microsoft,
+Visual Studio Code, Diffview, or snacks.nvim.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:
