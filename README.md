@@ -7,9 +7,11 @@ The intent is "Cmd-B explorer, but only Git changes":
 
 - changed files are shown in the same left sidebar layout
 - paths are rendered as a tree with the same icons, colors, and status markers
-- `<CR>`/`l` opens an editable vimdiff: left side is the Git baseline, right
-  side is the working-tree file
+- `<CR>` shows the diff preview
+- `l` opens an editable vimdiff: left side is the Git baseline, right side is
+  the working-tree file
 - `o` opens the working-tree file
+- `p` moves focus to the diff preview
 - `s`/`u` stage and unstage
 - `x` discards unstaged changes with confirmation
 
@@ -67,8 +69,10 @@ Inside the sidebar:
 
 | Key | Action |
 | --- | --- |
-| `<CR>` / `l` | Open/collapse directory, open editable file diff |
+| `<CR>` | Toggle directory or show diff preview |
+| `l` | Open editable file diff |
 | `o` | Open working-tree file |
+| `p` | Focus diff preview |
 | `s` | Stage selected file |
 | `u` | Unstage selected file |
 | `S` | Stage all |
@@ -79,11 +83,17 @@ Inside the sidebar:
 | `/` | Move focus to search, matching Snacks picker behavior |
 | `<Esc>` | Close/cancel, matching Snacks picker behavior |
 
-Inside an editable diff opened with `<CR>`/`l`:
+Inside an editable diff opened with `l`:
 
 | Key | Action |
 | --- | --- |
 | `<BS>` | Close the editable diff and focus the Diff Drawer sidebar |
+
+Inside the diff preview:
+
+| Key | Action |
+| --- | --- |
+| `h` / `<BS>` | Focus the Diff Drawer sidebar |
 
 Discard uses `git restore --worktree` for tracked files and `git clean -fd` for
 untracked files, after confirmation. Unlike VS Code, this does not move files to

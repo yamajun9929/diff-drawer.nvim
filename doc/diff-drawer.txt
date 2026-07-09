@@ -18,10 +18,10 @@ Open the sidebar with:
 <
 
 The sidebar uses the same Snacks picker/explorer UI as LazyVim's file explorer.
-It shows only Git changed files as a tree. Press <CR> or `l` on a file to open
-an editable vimdiff. The left pane is a read-only Git baseline and the right
-pane is the working-tree file. Press `o` to jump to the working-tree file
-without opening a diff.
+It shows only Git changed files as a tree. Press <CR> on a file to show its diff
+preview. Press `l` to open an editable vimdiff. The left pane is a read-only Git
+baseline and the right pane is the working-tree file. Press `o` to jump to the
+working-tree file without opening a diff. Press `p` to focus the preview pane.
 
 ==============================================================================
 COMMANDS                                     *diff-drawer-commands*
@@ -40,9 +40,10 @@ MAPPINGS                                     *diff-drawer-mappings*
 
 Default sidebar mappings:
 
-<CR>    Toggle directory or open editable file diff.
-l       Toggle directory or open editable file diff.
+<CR>    Toggle directory or show diff preview.
+l       Open editable file diff.
 o       Open working-tree file.
+p       Focus diff preview.
 s       Stage selected file.
 u       Unstage selected file.
 S       Stage all changes.
@@ -54,6 +55,11 @@ h       Collapse directory.
 Default editable diff mappings:
 
 <BS>    Close the editable diff and focus the Diff Drawer sidebar.
+
+Default diff preview mappings:
+
+h       Focus the Diff Drawer sidebar.
+<BS>    Focus the Diff Drawer sidebar.
 
 ==============================================================================
 CONFIGURATION                                *diff-drawer-configuration*

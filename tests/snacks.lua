@@ -19,7 +19,8 @@ local function run(cwd, args)
 end
 
 local function find_item(picker, path)
-  for index, item in ipairs(picker:items()) do
+  for index = 1, picker.list:count() do
+    local item = picker.list:get(index)
     if item.entry and item.entry.path == path then
       return item, index
     end
@@ -27,7 +28,23 @@ local function find_item(picker, path)
 end
 
 local function select_index(picker, index)
+  picker.list.top = index
   picker.list.cursor = index
+  picker.list.dirty = true
+  picker.list:render()
+  if picker.list.win and picker.list.win:win_valid() then
+    vim.api.nvim_win_set_cursor(picker.list.win.win, { picker.list:idx2row(index), 0 })
+  end
+end
+
+local function key_action(picker, key)
+  local spec = picker.opts.win.list.keys[key]
+  return type(spec) == "table" and spec[1] or spec
+end
+
+local function preview_key_action(picker, key)
+  local spec = picker.opts.win.preview.keys[key]
+  return type(spec) == "table" and spec[1] or spec
 end
 
 local function has_buffer_key(buf, lhs)
@@ -82,6 +99,13 @@ vim.wait(1000, function()
 end)
 assert(#Snacks.picker.get({ source = "explorer", tab = false }) == 0, "expected explorer picker to close")
 assert(drawer.open() == picker, "expected open to be idempotent")
+assert(picker.opts.confirm == "scm_preview", "expected confirm to preview")
+assert(key_action(picker, "<CR>") == "scm_preview", "expected enter to preview")
+assert(key_action(picker, "l") == "scm_open_diff", "expected l to open editable diff")
+assert(key_action(picker, "o") == "scm_open_file", "expected o to open working-tree file")
+assert(key_action(picker, "p") == "focus_preview", "expected p to focus the preview")
+assert(preview_key_action(picker, "h") == "focus_list", "expected h in preview to focus list")
+assert(preview_key_action(picker, "<BS>") == "focus_list", "expected backspace in preview to focus list")
 
 local items = picker:items()
 assert(items[1].dir == true, "expected directory tree item")
@@ -89,7 +113,7 @@ assert(items[3].entry and items[3].entry.path == "a/b/x.txt", "expected changed 
 
 local before = #items
 select_index(picker, 1)
-picker:action("scm_confirm")
+picker:action("scm_preview")
 vim.wait(1000, function()
   local collapsed = picker:items()
   return #collapsed == 1 and collapsed[1].dir and collapsed[1].file == "a"
@@ -97,7 +121,7 @@ end)
 assert(#picker:items() < before, "expected directory confirm to collapse")
 
 select_index(picker, 1)
-picker:action("scm_confirm")
+picker:action("scm_preview")
 vim.wait(1000, function()
   return find_item(picker, "a/b/x.txt") ~= nil
 end)
@@ -105,8 +129,30 @@ local file_item, file_index = find_item(picker, "a/b/x.txt")
 assert(file_item, "expected changed file item after expand")
 
 select_index(picker, file_index)
-picker:action("scm_confirm")
+picker.opts.actions.scm_preview(picker, file_item)
 local state = require("diff_drawer.snacks")._state.pickers[picker]
+assert(state and #state.diff_wins == 0, "expected confirm to keep editable diff closed")
+vim.wait(1000, function()
+  local preview_item = picker.preview and picker.preview.item
+  return preview_item and preview_item.entry and preview_item.entry.path == file_item.entry.path
+end)
+local preview_item = picker.preview and picker.preview.item
+assert(
+  preview_item and preview_item.entry and preview_item.entry.path == file_item.entry.path,
+  "expected confirm to show the diff preview"
+)
+
+picker:set_layout("default")
+picker.opts.actions.scm_open_file(picker, file_item)
+vim.wait(1000, function()
+  return vim.api.nvim_buf_get_name(0):match("a/b/x%.txt$") ~= nil
+end)
+assert(picker.resolved_layout.preview == "main", "expected opening a file to move the drawer back to the sidebar")
+assert(vim.api.nvim_buf_get_name(0):match("a/b/x%.txt$"), "expected working-tree file to open")
+assert(drawer.focus(), "expected focus call to return to the drawer after opening a file")
+
+picker.opts.actions.scm_open_diff(picker, file_item)
+state = require("diff_drawer.snacks")._state.pickers[picker]
 assert(state and #state.diff_wins == 2, "expected editable diff windows")
 local left = vim.api.nvim_win_get_buf(state.diff_wins[1])
 local right = vim.api.nvim_win_get_buf(state.diff_wins[2])
@@ -126,7 +172,7 @@ assert(not vim.api.nvim_win_is_valid(left_win), "expected baseline diff window t
 assert(not has_buffer_key(right, "<BS>"), "expected backspace mapping to be cleaned up")
 
 select_index(picker, file_index)
-picker:action("scm_stage")
+picker.opts.actions.scm_stage(picker, file_item)
 vim.wait(1000, function()
   local status = git.status_combined(dir)
   return status and status[1] and status[1].staged
@@ -148,7 +194,7 @@ end)
 local added_item, added_index = find_item(picker, "added.txt")
 assert(added_item, "expected staged added file with unstaged changes")
 select_index(picker, added_index)
-picker:action("scm_confirm")
+picker.opts.actions.scm_open_diff(picker, added_item)
 
 state = require("diff_drawer.snacks")._state.pickers[picker]
 assert(state and #state.diff_wins == 2, "expected editable diff windows for staged added file")
@@ -176,7 +222,7 @@ end)
 local rename_item, rename_index = find_item(picker, "new name.txt")
 assert(rename_item and rename_item.entry.orig_path == "old name.txt", "expected rename item")
 select_index(picker, rename_index)
-picker:action("scm_unstage")
+picker.opts.actions.scm_unstage(picker, rename_item)
 
 vim.wait(1000, function()
   local entries = git.status_combined(rename_dir) or {}
@@ -221,4 +267,26 @@ drawer.close()
 wipe_buffers_under(buffer_dir)
 vim.fn.delete(buffer_dir, "rf")
 vim.fn.delete(nonrepo_dir, "rf")
+
+local explicit_dir = vim.fn.tempname()
+local outside_dir = vim.fn.tempname()
+vim.fn.mkdir(explicit_dir, "p")
+vim.fn.mkdir(outside_dir, "p")
+run(explicit_dir, { "git", "init" })
+vim.fn.writefile({ "explicit" }, explicit_dir .. "/explicit.txt")
+run(explicit_dir, { "git", "add", "explicit.txt" })
+run(explicit_dir, { "git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "init" })
+vim.fn.writefile({ "explicit", "changed" }, explicit_dir .. "/explicit.txt")
+
+vim.cmd.cd(outside_dir)
+picker = assert(drawer.open({ cwd = explicit_dir }))
+vim.wait(1000, function()
+  return find_item(picker, "explicit.txt") ~= nil
+end)
+assert(find_item(picker, "explicit.txt"), "expected drawer to respect explicit cwd")
+
+drawer.close()
+wipe_buffers_under(explicit_dir)
+vim.fn.delete(explicit_dir, "rf")
+vim.fn.delete(outside_dir, "rf")
 print("snacks integration ok")

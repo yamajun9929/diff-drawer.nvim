@@ -235,6 +235,8 @@ local function has_keymap(maps, lhs)
 end
 
 local clear_edit_diff
+local ensure_edit_window
+local select_item
 
 local function set_diff_back_key(picker, buf)
   if not is_valid_buf(buf) then
@@ -517,7 +519,111 @@ local function open_file(picker, item, action)
     return
   end
   clear_edit_diff(picker)
+  select_item(picker, item)
+  if not ensure_edit_window(picker) then
+    notify("ファイルを開ける編集ウィンドウがありません", vim.log.levels.ERROR)
+    return
+  end
   Snacks.picker.actions.jump(picker, item, action or { cmd = "edit" })
+end
+
+select_item = function(picker, item)
+  if not (picker and picker.list and item) then
+    return
+  end
+
+  for index = 1, picker.list:count() do
+    local candidate = picker.list:get(index)
+    local same_entry = candidate and candidate.entry and item.entry and candidate.entry.path == item.entry.path
+    if candidate == item or same_entry then
+      picker.list.cursor = index
+      if picker.list.win and picker.list.win:win_valid() then
+        local row = picker.list:idx2row(index)
+        local height = picker.list.state and picker.list.state.height
+          or vim.api.nvim_win_get_height(picker.list.win.win)
+        if row < 1 or row > height then
+          picker.list.top = index
+          picker.list.dirty = true
+          picker.list:render()
+          row = picker.list:idx2row(index)
+        end
+        pcall(vim.api.nvim_win_set_cursor, picker.list.win.win, { row, 0 })
+      end
+      return
+    end
+  end
+end
+
+local function show_preview(picker, item)
+  item = item or picker:current()
+  if not item or item.dir then
+    return
+  end
+
+  clear_edit_diff(picker)
+  select_item(picker, item)
+
+  local function render()
+    if not picker or picker.closed then
+      return
+    end
+
+    select_item(picker, item)
+
+    if picker.preview then
+      if picker.preview.update then
+        pcall(picker.preview.update, picker.preview, picker)
+      end
+      if picker.preview.win and picker.preview.win:valid() then
+        local prev = picker.preview.item
+        local buf = picker.preview.win.buf
+        picker.preview.item = item
+        picker.preview.filter = picker:filter()
+        picker.preview.pos = item.pos
+        if picker.preview.spinner then
+          picker.preview:spinner(false)
+        end
+
+        local ok, err = pcall(
+          preview,
+          setmetatable({
+            preview = picker.preview,
+            item = item,
+            prev = prev,
+            picker = picker,
+          }, {
+            __index = function(_, key)
+              if key == "buf" then
+                return picker.preview.win.buf
+              elseif key == "win" then
+                return picker.preview.win.win
+              end
+            end,
+          })
+        )
+        if not ok and picker.preview.notify then
+          picker.preview:notify(err, "error")
+        end
+        if picker.preview.win.buf ~= buf and picker.preview.clear then
+          picker.preview:clear(buf)
+        end
+        select_item(picker, item)
+        return true
+      end
+    end
+
+    if picker.show_preview then
+      pcall(picker.show_preview, picker)
+      return true
+    end
+  end
+
+  if render() then
+    vim.schedule(function()
+      render()
+    end)
+    return
+  end
 end
 
 local function lines_from_string(value)
@@ -634,6 +740,39 @@ local function main_window(picker)
   end
 end
 
+ensure_edit_window = function(picker)
+  if not picker or picker.closed then
+    return nil
+  end
+
+  if picker.set_layout then
+    pcall(picker.set_layout, picker, "sidebar")
+  end
+  if picker._main and picker._main.update then
+    pcall(picker._main.update, picker._main)
+  end
+
+  local win = main_window(picker)
+  if win then
+    picker.main = win
+    return win
+  end
+
+  local list_win = picker.list and picker.list.win and picker.list.win.win
+  if not is_valid_win(list_win) then
+    return nil
+  end
+
+  vim.api.nvim_set_current_win(list_win)
+  vim.cmd("rightbelow vertical new")
+  win = vim.api.nvim_get_current_win()
+  vim.w[win].snacks_main = true
+  picker.main = win
+  vim.cmd("lcd " .. vim.fn.fnameescape(repo_for_picker(picker)))
+  focus_list(picker)
+  return win
+end
+
 local function open_diff(picker, item)
   item = item or picker:current()
   if not item or item.dir then
@@ -643,7 +782,8 @@ local function open_diff(picker, item)
   local repo = repo_for_picker(picker)
   local entry = item.entry
   local st = state_for(picker)
-  local base_win = is_valid_win(st.diff_wins[2]) and st.diff_wins[2] or main_window(picker)
+  select_item(picker, item)
+  local base_win = is_valid_win(st.diff_wins[2]) and st.diff_wins[2] or ensure_edit_window(picker)
 
   if not base_win then
     notify("差分を開ける編集ウィンドウがありません", vim.log.levels.ERROR)
@@ -708,14 +848,18 @@ local function close_dir(picker, item)
   picker:refresh()
 end
 
+local function preview_or_toggle(picker, item)
+  item = item or picker:current()
+  if item and item.dir then
+    return toggle_dir(picker, item)
+  end
+  return show_preview(picker, item)
+end
+
 local actions = {
-  scm_confirm = function(picker, item)
-    item = item or picker:current()
-    if item and item.dir then
-      return toggle_dir(picker, item)
-    end
-    return open_diff(picker, item)
-  end,
+  scm_preview = preview_or_toggle,
+  scm_confirm = preview_or_toggle,
+  scm_open_diff = open_diff,
   scm_open_file = open_file,
   scm_toggle_dir = toggle_dir,
   scm_close_dir = close_dir,
@@ -762,6 +906,7 @@ function M.open(opts)
   return snackspicker()({
     source = "diff_drawer",
     title = opts.title or "Git Changes",
+    cwd = opts.cwd or default_cwd(),
     finder = finder,
     format = "file",
     preview = preview,
@@ -777,14 +922,15 @@ function M.open(opts)
       severity = { pos = "right" },
     },
     actions = actions,
-    confirm = "scm_confirm",
+    confirm = "scm_preview",
     win = {
       list = {
         keys = {
-          ["<CR>"] = "scm_confirm",
-          ["l"] = "scm_confirm",
-          ["o"] = "scm_open_file",
-          ["<S-CR>"] = "scm_open_file",
+          ["<CR>"] = { "scm_preview", desc = "Preview diff" },
+          ["l"] = { "scm_open_diff", desc = "Open editable diff" },
+          ["o"] = { "scm_open_file", desc = "Open working-tree file" },
+          ["p"] = { "focus_preview", desc = "Focus preview" },
+          ["<S-CR>"] = { "scm_open_file", desc = "Open working-tree file" },
           ["h"] = "scm_close_dir",
           ["s"] = "scm_stage",
           ["u"] = "scm_unstage",
@@ -799,6 +945,12 @@ function M.open(opts)
         keys = {
           ["<Tab>"] = { "scm_stage", mode = { "n", "i" } },
           ["<c-r>"] = { "scm_refresh", mode = { "n", "i" }, nowait = true },
+        },
+      },
+      preview = {
+        keys = {
+          ["<BS>"] = { "focus_list", desc = "Focus list" },
+          ["h"] = { "focus_list", desc = "Focus list" },
         },
       },
     },
